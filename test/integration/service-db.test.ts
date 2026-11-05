@@ -93,7 +93,7 @@ test('PgServiceStore creates and finds an API key', async () => {
 
   const userKeys = await store.withSnapshot(async (reader) => reader.findApiKeysByUserId(user.id));
   assert.equal(userKeys.length, 1);
-  assert.equal(userKeys[0].keyId, 'key123');
+  assert.equal(userKeys[0]!.keyId, 'key123');
 });
 
 test('PgServiceStore revokes an API key', async () => {
@@ -136,10 +136,10 @@ test('PgServiceStore manages credit transactions and balance', async () => {
   // Check transaction history
   const transactions = await store.withSnapshot(async (reader) => reader.findCreditTransactionsByUserId(user.id, 10));
   assert.equal(transactions.length, 2);
-  assert.equal(Number(transactions[0].amount), -1);
-  assert.equal(transactions[0].reason, 'api_call');
-  assert.equal(Number(transactions[1].amount), 1000);
-  assert.equal(transactions[1].reason, 'topup');
+  assert.equal(Number(transactions[0]!.amount), -1);
+  assert.equal(transactions[0]!.reason, 'api_call');
+  assert.equal(Number(transactions[1]!.amount), 1000);
+  assert.equal(transactions[1]!.reason, 'topup');
 });
 
 test('PgServiceStore finds tier by id', async () => {

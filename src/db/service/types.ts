@@ -2,6 +2,8 @@ export interface User {
   id: string;
   email: string;
   passwordHash: string;
+  refreshTokenHash: string | null;
+  refreshTokenExpiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,6 +52,7 @@ export interface CreditTransaction {
 export interface ServiceReader {
   findUserById(id: string): Promise<User | null>;
   findUserByEmail(email: string): Promise<User | null>;
+  findUserByRefreshTokenHash(refreshTokenHash: string): Promise<User | null>;
   findApiKeyByKeyId(keyId: string): Promise<ApiKey | null>;
   findApiKeysByUserId(userId: string): Promise<ApiKey[]>;
   findTierById(id: string): Promise<Tier | null>;
@@ -69,6 +72,7 @@ export interface ServiceStore {
     expiresAt: Date | null
   ): Promise<ApiKey>;
   revokeApiKey(keyId: string): Promise<void>;
+  updateRefreshToken(userId: string, refreshTokenHash: string, expiresAt: Date): Promise<void>;
   createCreditTransaction(
     userId: string,
     amount: number,

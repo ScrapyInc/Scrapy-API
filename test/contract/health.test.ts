@@ -37,7 +37,7 @@ function createMockCatalogStore(healthy = true) {
       if (!healthy) throw new Error('Database unavailable');
       return fn({});
     },
-  };
+  } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 function createMockServiceStore(healthy = true) {
@@ -46,7 +46,13 @@ function createMockServiceStore(healthy = true) {
       if (!healthy) throw new Error('Service database unavailable');
       return fn({});
     },
-  };
+    async createUser() { throw new Error('Not implemented'); },
+    async createApiKey() { throw new Error('Not implemented'); },
+    async revokeApiKey() { throw new Error('Not implemented'); },
+    async updateRefreshToken() { throw new Error('Not implemented'); },
+    async createCreditTransaction() { throw new Error('Not implemented'); },
+    async updateCreditBalance() { throw new Error('Not implemented'); },
+  } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 function createMockRedis(healthy = true) {
