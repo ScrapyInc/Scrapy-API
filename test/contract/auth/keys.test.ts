@@ -5,7 +5,7 @@ import { buildApp } from '../../../src/app.ts';
 import type { AppConfig } from '../../../src/config.ts';
 import { createLoggerFactory } from '../../../src/logger/factory.ts';
 import { createMemoryTransport } from '../../../src/logger/transports/memory.ts';
-import { createPool, createServicePool } from '../../../src/db/pool.ts';
+import { createServicePool } from '../../../src/db/pool.ts';
 import { createRedisClient } from '../../../src/db/redis.ts';
 
 let app: Awaited<ReturnType<typeof buildApp>>;
@@ -35,7 +35,6 @@ before(async () => {
     dbConcurrency: 2,
   } satisfies AppConfig;
 
-  const catalogPool = createPool(config.databaseUrl, config.dbQueryTimeoutMs);
   const servicePool = createServicePool(config.serviceDatabaseUrl, config.dbQueryTimeoutMs);
   const redisClient = createRedisClient(config.redisUrl);
 
@@ -47,7 +46,7 @@ before(async () => {
       version: 'test',
       transports: [createMemoryTransport()],
     }).create(),
-    catalog: null,
+    catalog: undefined,
     servicePool,
     redis: redisClient,
   });
@@ -201,7 +200,7 @@ test('POST /v1/auth/keys/:id/revoke revokes key', async () => {
     url: '/v1/auth/keys',
     headers: authHeaders(accessToken),
   });
-  const revokedKey = listResponse.json().keys.find((k: any) => k.id === keyId);
+  const revokedKey = listResponse.json().keys.find((k: { id: string }) => k.id === keyId);
   assert.ok(!revokedKey || revokedKey.is_active === false);
 });
 
@@ -259,7 +258,7 @@ test('POST /v1/auth/keys/:id/rotate rotates key', async () => {
     url: '/v1/auth/keys',
     headers: authHeaders(accessToken),
   });
-  const oldKey = listResponse.json().keys.find((k: any) => k.id === oldKeyId);
+  const oldKey = listResponse.json().keys.find((k: { id: string }) => k.id === oldKeyId);
   assert.ok(oldKey);
   assert.equal(oldKey.is_active, false);
 });

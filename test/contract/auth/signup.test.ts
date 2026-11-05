@@ -40,10 +40,14 @@ function createMockServiceStore() {
       }
       return null;
     },
+    async findApiKeyByKeyId() { return null; },
+    async findApiKeysByUserId() { return []; },
+    async findCreditBalanceByUserId() { return null; },
+    async findCreditTransactionsByUserId() { return []; },
   };
 
-  return {
-    async withSnapshot<T>(fn: (reader: typeof reader) => Promise<T>): Promise<T> {
+  const store = {
+    async withSnapshot<T>(fn: (r: typeof reader) => Promise<T>): Promise<T> {
       return fn(reader);
     },
     async createUser(email: string, passwordHash: string): Promise<MockUser> {
@@ -70,7 +74,13 @@ function createMockServiceStore() {
         user.updatedAt = new Date();
       }
     },
+    async createApiKey() { throw new Error('Not implemented'); },
+    async revokeApiKey() { throw new Error('Not implemented'); },
+    async createCreditTransaction() { throw new Error('Not implemented'); },
+    async updateCreditBalance() { throw new Error('Not implemented'); },
   };
+
+  return store;
 }
 
 function createMockRedis() {
@@ -85,9 +95,9 @@ function createMockRedis() {
 function createMockServicePool() {
   const users = new Map<string, MockUser>();
   const emailIndex = new Map<string, string>();
-  let nextId = 1;
 
   const mockClient = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async query(sql: string, params?: any[]) {
       const normalizedSql = sql.replace(/\s+/g, ' ').trim().toLowerCase();
       
@@ -178,12 +188,13 @@ function createMockServicePool() {
     async connect() {
       return mockClient;
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async query(sql: string, params?: any[]) {
       return mockClient.query(sql, params);
     },
     async end() {},
     on: () => {},
-  } as any;
+  };
 }
 
 function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -222,9 +233,10 @@ test('POST /v1/auth/signup creates user and returns tokens', async () => {
       version: 'test',
       transports: [createMemoryTransport()],
     }).create(),
-    catalog: null,
+    catalog: undefined,
     serviceStore,
-    servicePool,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    servicePool: servicePool as any,
     redis: createMockRedis(),
   });
 
@@ -259,9 +271,10 @@ test('POST /v1/auth/signup rejects invalid email', async () => {
       version: 'test',
       transports: [createMemoryTransport()],
     }).create(),
-    catalog: null,
+    catalog: undefined,
     serviceStore,
-    servicePool,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    servicePool: servicePool as any,
     redis: createMockRedis(),
   });
 
@@ -289,9 +302,10 @@ test('POST /v1/auth/signup rejects weak password', async () => {
       version: 'test',
       transports: [createMemoryTransport()],
     }).create(),
-    catalog: null,
+    catalog: undefined,
     serviceStore,
-    servicePool,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    servicePool: servicePool as any,
     redis: createMockRedis(),
   });
 
@@ -319,9 +333,10 @@ test('POST /v1/auth/signup rejects duplicate email', async () => {
       version: 'test',
       transports: [createMemoryTransport()],
     }).create(),
-    catalog: null,
+    catalog: undefined,
     serviceStore,
-    servicePool,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    servicePool: servicePool as any,
     redis: createMockRedis(),
   });
 
@@ -355,9 +370,10 @@ test('POST /v1/auth/signup does not return API key', async () => {
       version: 'test',
       transports: [createMemoryTransport()],
     }).create(),
-    catalog: null,
+    catalog: undefined,
     serviceStore,
-    servicePool,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    servicePool: servicePool as any,
     redis: createMockRedis(),
   });
 

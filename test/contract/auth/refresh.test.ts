@@ -5,7 +5,7 @@ import { buildApp } from '../../../src/app.ts';
 import type { AppConfig } from '../../../src/config.ts';
 import { createLoggerFactory } from '../../../src/logger/factory.ts';
 import { createMemoryTransport } from '../../../src/logger/transports/memory.ts';
-import { createPool, createServicePool } from '../../../src/db/pool.ts';
+import { createServicePool } from '../../../src/db/pool.ts';
 import { createRedisClient } from '../../../src/db/redis.ts';
 
 let app: Awaited<ReturnType<typeof buildApp>>;
@@ -35,7 +35,6 @@ before(async () => {
     dbConcurrency: 2,
   } satisfies AppConfig;
 
-  const catalogPool = createPool(config.databaseUrl, config.dbQueryTimeoutMs);
   const servicePool = createServicePool(config.serviceDatabaseUrl, config.dbQueryTimeoutMs);
   const redisClient = createRedisClient(config.redisUrl);
 
@@ -47,7 +46,7 @@ before(async () => {
       version: 'test',
       transports: [createMemoryTransport()],
     }).create(),
-    catalog: null,
+    catalog: undefined,
     servicePool,
     redis: redisClient,
   });
