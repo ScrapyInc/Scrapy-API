@@ -6,7 +6,7 @@ import type { AppConfig } from '../../src/config.ts';
 import { createLoggerFactory } from '../../src/logger/factory.ts';
 import { createMemoryTransport } from '../../src/logger/transports/memory.ts';
 
-test('OpenAPI lists search and refresh and the service has no bearer auth', async () => {
+test('OpenAPI lists search and refresh and includes auth endpoints with bearer auth', async () => {
   const app = buildApp({
     config: {
       port: 3000,
@@ -41,11 +41,16 @@ test('OpenAPI lists search and refresh and the service has no bearer auth', asyn
   const document = response.json<{
     info: { description: string };
     paths: Record<string, unknown>;
-    components: { securitySchemes?: unknown };
+    components: { securitySchemes?: { bearerAuth?: { type: string; scheme: string } } };
   }>();
   assert.equal(typeof document.paths['/v1/search'], 'object');
   assert.equal(typeof document.paths['/v1/refreshes'], 'object');
-  assert.equal(document.components.securitySchemes, undefined);
+  assert.equal(typeof document.paths['/v1/auth/signup'], 'object');
+  assert.equal(typeof document.paths['/v1/auth/login'], 'object');
+  assert.equal(typeof document.paths['/v1/auth/keys'], 'object');
+  assert.ok(document.components.securitySchemes);
+  assert.equal(document.components.securitySchemes?.bearerAuth?.type, 'http');
+  assert.equal(document.components.securitySchemes?.bearerAuth?.scheme, 'bearer');
   assert.match(document.info.description, /no HTTP credential/);
   await app.close();
 });
