@@ -24,6 +24,7 @@ export interface GeneratedApiKey {
   plaintext: string;
   keyLast4: string;
   keyHash: string;
+  keyType: 'live' | 'test';
 }
 
 export function generateApiKey(keyType: 'live' | 'test'): GeneratedApiKey {
@@ -34,7 +35,7 @@ export function generateApiKey(keyType: 'live' | 'test'): GeneratedApiKey {
   const plaintext = `sk_${keyType}_${keyId}_${secret}`;
   const keyLast4 = secret.slice(-4);
   const keyHash = hashSecret(secret);
-  return { keyId, secret, plaintext, keyLast4, keyHash };
+  return { keyId, secret, plaintext, keyLast4, keyHash, keyType };
 }
 
 export function parseApiKey(plaintext: string): { keyId: string; secret: string } | null {
