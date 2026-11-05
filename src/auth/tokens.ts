@@ -1,8 +1,13 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? '');
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '30d';
+
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET not configured');
+  return new TextEncoder().encode(secret);
+}
 
 export interface TokenPayload extends JWTPayload {
   userId: string;
@@ -15,7 +20,7 @@ export async function signAccessToken(userId: string, email: string, tier: strin
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(ACCESS_TOKEN_EXPIRY)
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function signRefreshToken(userId: string): Promise<string> {
@@ -23,12 +28,12 @@ export async function signRefreshToken(userId: string): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(REFRESH_TOKEN_EXPIRY)
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function verifyAccessToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload as unknown as TokenPayload;
   } catch {
     return null;
@@ -37,7 +42,7 @@ export async function verifyAccessToken(token: string): Promise<TokenPayload | n
 
 export async function verifyRefreshToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload as unknown as TokenPayload;
   } catch {
     return null;
