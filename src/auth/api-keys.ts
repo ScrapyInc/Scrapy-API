@@ -1,9 +1,13 @@
 import crypto from 'node:crypto';
 
-const API_KEY_PEPPER = process.env.API_KEY_PEPPER ?? '';
-if (!API_KEY_PEPPER) throw new Error('API_KEY_PEPPER not configured');
 const KEY_ID_LENGTH = 8;
 const SECRET_BYTES = 32;
+
+function getApiKeyPepper(): string {
+  const pepper = process.env.API_KEY_PEPPER;
+  if (!pepper) throw new Error('API_KEY_PEPPER not configured');
+  return pepper;
+}
 
 function base36Encode(bytes: Uint8Array): string {
   let result = '';
@@ -45,7 +49,7 @@ export function parseApiKey(plaintext: string): { keyId: string; secret: string 
 }
 
 export function hashSecret(secret: string): string {
-  return crypto.createHmac('sha256', API_KEY_PEPPER).update(secret).digest('hex');
+  return crypto.createHmac('sha256', getApiKeyPepper()).update(secret).digest('hex');
 }
 
 export function validateApiKey(secret: string, keyHash: string): boolean {

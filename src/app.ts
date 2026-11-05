@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import Fastify, { LogController, type FastifyInstance } from 'fastify';
+import type pg from 'pg';
 
 import type { AppConfig } from './config.ts';
 import type { CatalogStore } from './db/catalog.ts';
@@ -13,6 +14,7 @@ import type { RefreshDeps } from './routes/refreshes.ts';
 import { registerRefresh } from './routes/refreshes.ts';
 import { registerReady } from './routes/health.ts';
 import { registerSearch } from './routes/search.ts';
+import { registerAuthRoutes } from './routes/auth/index.ts';
 import { openApiDocument } from './openapi.ts';
 
 export interface BuildAppOptions {
@@ -21,6 +23,7 @@ export interface BuildAppOptions {
   readyCheck?: () => Promise<boolean>;
   catalog?: CatalogStore;
   serviceStore?: ServiceStore;
+  servicePool?: pg.Pool;
   redis?: RedisInstance;
   refresh?: Omit<RefreshDeps, 'config' | 'logger' | 'rateLimit' | 'now'> & {
     rateLimit?: RateLimiter;
@@ -125,6 +128,10 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       now,
       ...(options.refresh.dispatch ? { dispatch: options.refresh.dispatch } : {}),
     });
+  }
+
+  if (options.servicePool) {
+    registerAuthRoutes(app, options.servicePool, logger);
   }
 
   app.get('/health/live', {

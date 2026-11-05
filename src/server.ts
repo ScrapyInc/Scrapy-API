@@ -43,6 +43,7 @@ export async function start(env: NodeJS.ProcessEnv = process.env): Promise<void>
     },
     catalog: new PgCatalog(catalogPool, logger),
     serviceStore: new PgServiceStore(servicePool, logger),
+    servicePool,
     redis: redisClient,
     refresh: { store: new PgRefreshStore(catalogPool) },
   });
