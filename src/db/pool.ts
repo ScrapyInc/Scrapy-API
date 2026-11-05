@@ -32,3 +32,7 @@ export function createPool(connectionString: string, statementTimeoutMs: number,
   });
   return pool;
 }
+
+export function createServicePool(connectionString: string, statementTimeoutMs: number): pg.Pool {
+  return createPool(connectionString, statementTimeoutMs);
+}

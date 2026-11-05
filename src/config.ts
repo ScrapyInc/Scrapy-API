@@ -9,6 +9,9 @@ export interface AppConfig {
   staleAfterHours: number;
   databaseUrl: string;
   databaseSslRootCert?: string;
+  serviceDatabaseUrl: string;
+  redisUrl: string;
+  apiKeyPepper: string;
   githubRepository: string;
   githubWorkflowId: string;
   githubRef: string;
@@ -37,7 +40,7 @@ export class ConfigError extends Error {
   }
 }
 
-const REQUIRED = ['DATABASE_URL'] as const;
+const REQUIRED = ['DATABASE_URL', 'SERVICE_DATABASE_URL', 'REDIS_URL', 'API_KEY_PEPPER'] as const;
 
 const GITHUB_SETTINGS = [
   'GITHUB_REPOSITORY',
@@ -83,6 +86,9 @@ export function loadConfig(env: Env): AppConfig {
     production && LEVEL_ORDER[requestedLevel] < LEVEL_ORDER.info ? 'info' : requestedLevel;
 
   const databaseUrl = readDatabaseUrl(env.DATABASE_URL, 'DATABASE_URL', invalid);
+  const serviceDatabaseUrl = readDatabaseUrl(env.SERVICE_DATABASE_URL, 'SERVICE_DATABASE_URL', invalid);
+  const redisUrl = readRedisUrl(env.REDIS_URL, 'REDIS_URL', invalid);
+  const apiKeyPepper = readSecret(env.API_KEY_PEPPER, 'API_KEY_PEPPER', 32, invalid);
   const github = readGithubSettings(env, missing, invalid);
 
   const config: AppConfig = {
@@ -93,6 +99,9 @@ export function loadConfig(env: Env): AppConfig {
     appVersion: optional(env, 'APP_VERSION', 'dev', invalid),
     staleAfterHours: readNumber(env, 'STALE_AFTER_HOURS', 48, 1, 24 * 14, invalid),
     databaseUrl: databaseUrl ?? '',
+    serviceDatabaseUrl: serviceDatabaseUrl ?? '',
+    redisUrl: redisUrl ?? '',
+    apiKeyPepper: apiKeyPepper ?? '',
     ...(present(env.DATABASE_SSLROOTCERT) ? { databaseSslRootCert: env.DATABASE_SSLROOTCERT } : {}),
     githubRepository: github.repository,
     githubWorkflowId: github.workflowId,
@@ -265,6 +274,32 @@ function readDatabaseUrl(
     url.hash !== '' ||
     (!local && url.password === '') ||
     (!local && url.searchParams.get('sslmode') === 'disable')
+  ) {
+    invalid.push(name);
+    return undefined;
+  }
+  return value;
+}
+
+function readRedisUrl(
+  value: string | undefined,
+  name: string,
+  invalid: string[],
+): string | undefined {
+  if (!present(value)) return undefined;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    invalid.push(name);
+    return undefined;
+  }
+  const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
+  if (
+    (url.protocol !== 'redis:' && url.protocol !== 'rediss:') ||
+    url.hostname === '' ||
+    (!local && url.password === '') ||
+    (!local && url.protocol !== 'rediss:')
   ) {
     invalid.push(name);
     return undefined;

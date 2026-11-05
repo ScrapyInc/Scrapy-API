@@ -4,6 +4,8 @@ import Fastify, { LogController, type FastifyInstance } from 'fastify';
 
 import type { AppConfig } from './config.ts';
 import type { CatalogStore } from './db/catalog.ts';
+import type { ServiceStore } from './db/service/types.ts';
+import type { RedisInstance } from './db/redis.ts';
 import { BODY_LIMIT_BYTES, errorBody, HttpError, mapError } from './http/errors.ts';
 import { createRateLimiter, type RateLimiter } from './http/rate-limit.ts';
 import type { Logger } from './logger/types.ts';
@@ -18,6 +20,8 @@ export interface BuildAppOptions {
   logger: Logger;
   readyCheck?: () => Promise<boolean>;
   catalog?: CatalogStore;
+  serviceStore?: ServiceStore;
+  redis?: RedisInstance;
   refresh?: Omit<RefreshDeps, 'config' | 'logger' | 'rateLimit' | 'now'> & {
     rateLimit?: RateLimiter;
     now?: () => Date;
