@@ -73,7 +73,9 @@ export function createTestApp(servicePool: pg.Pool, config: AppConfig): FastifyI
 }
 
 export function createTestServicePool(config: AppConfig): pg.Pool {
-  return createServicePool(config.serviceDatabaseUrl, config.dbQueryTimeoutMs);
+  // Remote test databases (for example Neon) can take longer than production's
+  // 5s default to accept the first connection after a cold start.
+  return createServicePool(config.serviceDatabaseUrl, config.dbQueryTimeoutMs, 30_000);
 }
 
 export async function cleanupBillingTestData(pool: pg.Pool, prefix: string): Promise<void> {
