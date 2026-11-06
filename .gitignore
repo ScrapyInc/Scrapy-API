@@ -152,3 +152,11 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Specs and planning documents
+docs/specs/
+docs/intent/
+docs/future/
+tasks/
+*.plan.md
+*.todo.md

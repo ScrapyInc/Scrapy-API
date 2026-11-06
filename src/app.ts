@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
 import Fastify, { LogController, type FastifyInstance } from 'fastify';
+import type pg from 'pg';
 
 import type { AppConfig } from './config.ts';
 import type { CatalogStore } from './db/catalog.ts';
+import type { ServiceStore } from './db/service/types.ts';
+import type { RedisInstance } from './db/redis.ts';
 import { BODY_LIMIT_BYTES, errorBody, HttpError, mapError } from './http/errors.ts';
 import { createRateLimiter, type RateLimiter } from './http/rate-limit.ts';
 import type { Logger } from './logger/types.ts';
@@ -11,6 +14,7 @@ import type { RefreshDeps } from './routes/refreshes.ts';
 import { registerRefresh } from './routes/refreshes.ts';
 import { registerReady } from './routes/health.ts';
 import { registerSearch } from './routes/search.ts';
+import { registerAuthRoutes } from './routes/auth/index.ts';
 import { openApiDocument } from './openapi.ts';
 
 export interface BuildAppOptions {
@@ -18,6 +22,9 @@ export interface BuildAppOptions {
   logger: Logger;
   readyCheck?: () => Promise<boolean>;
   catalog?: CatalogStore;
+  serviceStore?: ServiceStore;
+  servicePool?: pg.Pool;
+  redis?: RedisInstance;
   refresh?: Omit<RefreshDeps, 'config' | 'logger' | 'rateLimit' | 'now'> & {
     rateLimit?: RateLimiter;
     now?: () => Date;
@@ -121,6 +128,10 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       now,
       ...(options.refresh.dispatch ? { dispatch: options.refresh.dispatch } : {}),
     });
+  }
+
+  if (options.servicePool) {
+    registerAuthRoutes(app, options.servicePool, logger);
   }
 
   app.get('/health/live', {

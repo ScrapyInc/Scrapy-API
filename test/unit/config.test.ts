@@ -6,6 +6,10 @@ import { ConfigError, loadConfig } from '../../src/config.ts';
 function baseEnv(): Record<string, string> {
   return {
     DATABASE_URL: 'postgresql://app:app-password@db.example:5432/postgres?sslmode=require',
+    SERVICE_DATABASE_URL: 'postgresql://app:app-password@db.example:5432/service_db?sslmode=require',
+    REDIS_URL: 'rediss://:password@db.example:6379',
+    API_KEY_PEPPER: 'test-pepper-32-characters-minimum-length',
+    JWT_SECRET: 'test-secret-key-that-is-at-least-32-characters-long',
   };
 }
 
@@ -37,7 +41,7 @@ test('loadConfig names a missing DATABASE_URL and no secret', () => {
     () => loadConfig({}),
     (error: unknown) => {
       assert.ok(error instanceof ConfigError);
-      assert.deepEqual(error.missing, ['DATABASE_URL']);
+      assert.deepEqual(error.missing, ['DATABASE_URL', 'SERVICE_DATABASE_URL', 'REDIS_URL', 'API_KEY_PEPPER', 'JWT_SECRET']);
       assert.equal(error.message.includes('postgresql://'), false);
       assert.equal(error.message.includes('password'), false);
       return true;
@@ -89,4 +93,90 @@ test('refresh dispatch settings are accepted together and rejected when incomple
       error.missing.includes('GITHUB_REF') &&
       error.missing.includes('GITHUB_TOKEN'),
   );
+});
+
+test('loadConfig requires SERVICE_DATABASE_URL', () => {
+  assert.throws(
+    () => loadConfig({ ...baseEnv(), SERVICE_DATABASE_URL: undefined as unknown as string }),
+    (error: unknown) => error instanceof ConfigError && error.missing.includes('SERVICE_DATABASE_URL'),
+  );
+});
+
+test('loadConfig validates SERVICE_DATABASE_URL format', () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        ...baseEnv(),
+        SERVICE_DATABASE_URL: 'mysql://user:pass@host/db',
+      }),
+    (error: unknown) => error instanceof ConfigError && error.invalid.includes('SERVICE_DATABASE_URL'),
+  );
+});
+
+test('loadConfig requires REDIS_URL', () => {
+  assert.throws(
+    () => loadConfig({ ...baseEnv(), REDIS_URL: undefined as unknown as string }),
+    (error: unknown) => error instanceof ConfigError && error.missing.includes('REDIS_URL'),
+  );
+});
+
+test('loadConfig validates REDIS_URL format and requires rediss for remote', () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        ...baseEnv(),
+        REDIS_URL: 'redis://user:pass@host:6379',
+      }),
+    (error: unknown) => error instanceof ConfigError && error.invalid.includes('REDIS_URL'),
+  );
+
+  assert.throws(
+    () =>
+      loadConfig({
+        ...baseEnv(),
+        REDIS_URL: 'http://localhost:6379',
+      }),
+    (error: unknown) => error instanceof ConfigError && error.invalid.includes('REDIS_URL'),
+  );
+});
+
+test('loadConfig accepts local redis without password', () => {
+  const config = loadConfig({
+    ...baseEnv(),
+    REDIS_URL: 'redis://localhost:6379',
+  });
+  assert.match(config.redisUrl, /localhost/);
+});
+
+test('loadConfig accepts local rediss without password', () => {
+  const config = loadConfig({
+    ...baseEnv(),
+    REDIS_URL: 'rediss://localhost:6379',
+  });
+  assert.match(config.redisUrl, /localhost/);
+});
+
+test('loadConfig requires API_KEY_PEPPER', () => {
+  assert.throws(
+    () => loadConfig({ ...baseEnv(), API_KEY_PEPPER: undefined as unknown as string }),
+    (error: unknown) => error instanceof ConfigError && error.missing.includes('API_KEY_PEPPER'),
+  );
+});
+
+test('loadConfig validates API_KEY_PEPPER minimum length', () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        ...baseEnv(),
+        API_KEY_PEPPER: 'short',
+      }),
+    (error: unknown) => error instanceof ConfigError && error.invalid.includes('API_KEY_PEPPER'),
+  );
+});
+
+test('loadConfig returns new config fields', () => {
+  const config = loadConfig(baseEnv());
+  assert.equal(config.serviceDatabaseUrl, 'postgresql://app:app-password@db.example:5432/service_db?sslmode=require');
+  assert.equal(config.redisUrl, 'rediss://:password@db.example:6379');
+  assert.equal(config.apiKeyPepper, 'test-pepper-32-characters-minimum-length');
 });

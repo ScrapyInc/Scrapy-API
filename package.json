@@ -10,17 +10,26 @@
     "dev": "node --watch --env-file-if-exists=.env --experimental-strip-types src/server.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
-    "test": "node --test --experimental-strip-types \"test/unit/**/*.test.ts\" \"test/contract/**/*.test.ts\"",
+    "test": "node --test --test-concurrency=1 --experimental-strip-types \"test/contract/**/*.test.ts\" && node --test --test-concurrency=1 --experimental-strip-types \"test/unit/**/*.test.ts\"",
+    "test:unit": "node --test --test-concurrency=1 --experimental-strip-types \"test/unit/**/*.test.ts\"",
+    "test:contract": "node --test --test-concurrency=1 --experimental-strip-types \"test/contract/**/*.test.ts\"",
     "test:integration": "node --test --test-concurrency=1 --experimental-strip-types \"test/integration/**/*.test.ts\"",
+    "test:migrate": "node --env-file-if-exists=.env --experimental-strip-types test/scripts/migrate-test-db.ts",
     "build": "tsc -p tsconfig.build.json",
-    "start": "node --env-file-if-exists=.env dist/server.js"
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "migrate": "node --env-file-if-exists=.env --experimental-strip-types scripts/migrate.ts"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "fastify": "5.12.7",
+    "ioredis": "^6.0.0",
+    "jose": "^6.2.15",
     "pg": "8.23.1"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@types/bcrypt": "^6.0.0",
+    "@types/ioredis": "^4.28.10",
     "@types/node": "24.19.2",
     "@types/pg": "8.23.1",
     "eslint": "10.14.0",
