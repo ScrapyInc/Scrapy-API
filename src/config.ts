@@ -40,7 +40,7 @@ export class ConfigError extends Error {
   }
 }
 
-const REQUIRED = ['DATABASE_URL', 'SERVICE_DATABASE_URL', 'REDIS_URL', 'API_KEY_PEPPER'] as const;
+const REQUIRED = ['DATABASE_URL', 'SERVICE_DATABASE_URL', 'REDIS_URL', 'API_KEY_PEPPER', 'JWT_SECRET'] as const;
 
 const GITHUB_SETTINGS = [
   'GITHUB_REPOSITORY',

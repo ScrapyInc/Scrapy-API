@@ -9,6 +9,7 @@ function baseEnv(): Record<string, string> {
     SERVICE_DATABASE_URL: 'postgresql://app:app-password@db.example:5432/service_db?sslmode=require',
     REDIS_URL: 'rediss://:password@db.example:6379',
     API_KEY_PEPPER: 'test-pepper-32-characters-minimum-length',
+    JWT_SECRET: 'test-secret-key-that-is-at-least-32-characters-long',
   };
 }
 
@@ -40,7 +41,7 @@ test('loadConfig names a missing DATABASE_URL and no secret', () => {
     () => loadConfig({}),
     (error: unknown) => {
       assert.ok(error instanceof ConfigError);
-      assert.deepEqual(error.missing, ['DATABASE_URL', 'SERVICE_DATABASE_URL', 'REDIS_URL', 'API_KEY_PEPPER']);
+      assert.deepEqual(error.missing, ['DATABASE_URL', 'SERVICE_DATABASE_URL', 'REDIS_URL', 'API_KEY_PEPPER', 'JWT_SECRET']);
       assert.equal(error.message.includes('postgresql://'), false);
       assert.equal(error.message.includes('password'), false);
       return true;

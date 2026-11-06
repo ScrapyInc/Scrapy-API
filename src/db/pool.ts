@@ -34,5 +34,19 @@ export function createPool(connectionString: string, statementTimeoutMs: number,
 }
 
 export function createServicePool(connectionString: string, statementTimeoutMs: number): pg.Pool {
-  return createPool(connectionString, statementTimeoutMs);
+  const url = new URL(connectionString);
+  if (!isLocalDatabase(connectionString)) {
+    // For remote databases, check if sslmode is already set in the URL
+    if (!url.searchParams.has('sslmode')) {
+      url.searchParams.set('sslmode', 'verify-full');
+    }
+  }
+  const pool = new Pool({
+    connectionString: url.toString(),
+    max: 4,
+    connectionTimeoutMillis: 5_000,
+    statement_timeout: statementTimeoutMs,
+    ssl: isLocalDatabase(connectionString) ? undefined : { rejectUnauthorized: true },
+  });
+  return pool;
 }

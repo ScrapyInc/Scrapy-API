@@ -33,7 +33,15 @@ export function registerSignup(app: FastifyInstance, servicePool: pg.Pool, logge
 
     // Hash password and create user
     const passwordHash = await hashPassword(password);
-    const user = await store.createUser(email, passwordHash);
+    let user;
+    try {
+      console.log('Attempting to create user:', email);
+      user = await store.createUser(email, passwordHash);
+      console.log('User created:', user.id);
+    } catch (err) {
+      console.error('Failed to create user:', err);
+      throw err;
+    }
 
     // Issue tokens
     const token = await signAccessToken(user.id, user.email, 'free');

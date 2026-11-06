@@ -1,214 +1,56 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test, before, after } from 'node:test';
+import pg from 'pg';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
 
 import { buildApp } from '../../../src/app.ts';
 import type { AppConfig } from '../../../src/config.ts';
 import { createLoggerFactory } from '../../../src/logger/factory.ts';
 import { createMemoryTransport } from '../../../src/logger/transports/memory.ts';
+import { createRedisClient, validateRedisConnection } from '../../../src/db/redis.ts';
 
-interface MockUser {
-  id: string;
-  email: string;
-  passwordHash: string;
-  refreshTokenHash: string | null;
-  refreshTokenExpiresAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-function createMockServiceStore() {
-  const users = new Map<string, MockUser>();
-  const emailIndex = new Map<string, string>();
-
-  const reader = {
-    async findUserByEmail(email: string): Promise<MockUser | null> {
-      const id = emailIndex.get(email);
-      return id ? users.get(id) ?? null : null;
-    },
-    async findUserById(id: string): Promise<MockUser | null> {
-      return users.get(id) ?? null;
-    },
-    async findUserByRefreshTokenHash(hash: string): Promise<MockUser | null> {
-      for (const user of users.values()) {
-        if (user.refreshTokenHash === hash) return user;
-      }
-      return null;
-    },
-    async findTierById(id: string) {
-      if (id === 'free') {
-        return { id: 'free', name: 'Free', dailySearchCap: 100, monthlySearchCap: null, creditPerSearch: 1, creditPerBatchQuery: 1, createdAt: new Date() };
-      }
-      return null;
-    },
-    async findApiKeyByKeyId() { return null; },
-    async findApiKeysByUserId() { return []; },
-    async findCreditBalanceByUserId() { return null; },
-    async findCreditTransactionsByUserId() { return []; },
-  };
-
-  const store = {
-    async withSnapshot<T>(fn: (r: typeof reader) => Promise<T>): Promise<T> {
-      return fn(reader);
-    },
-    async createUser(email: string, passwordHash: string): Promise<MockUser> {
-      const id = crypto.randomUUID();
-      const now = new Date();
-      const user: MockUser = {
-        id,
-        email,
-        passwordHash,
-        refreshTokenHash: null,
-        refreshTokenExpiresAt: null,
-        createdAt: now,
-        updatedAt: now,
-      };
-      users.set(id, user);
-      emailIndex.set(email, id);
-      return user;
-    },
-    async updateRefreshToken(userId: string, refreshTokenHash: string, expiresAt: Date): Promise<void> {
-      const user = users.get(userId);
-      if (user) {
-        user.refreshTokenHash = refreshTokenHash;
-        user.refreshTokenExpiresAt = expiresAt;
-        user.updatedAt = new Date();
-      }
-    },
-    async createApiKey() { throw new Error('Not implemented'); },
-    async revokeApiKey() { throw new Error('Not implemented'); },
-    async createCreditTransaction() { throw new Error('Not implemented'); },
-    async updateCreditBalance() { throw new Error('Not implemented'); },
-  };
-
-  return store;
-}
-
-function createMockRedis() {
-  return {
-    ping: async () => 'PONG',
-    quit: async () => {},
-    on: () => {},
-    options: { lazyConnect: true, retryStrategy: () => null },
-  };
-}
-
-function createMockServicePool() {
-  const users = new Map<string, MockUser>();
-  const emailIndex = new Map<string, string>();
-
-  const mockClient = {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async query(sql: string, params?: any[]) {
-      const normalizedSql = sql.replace(/\s+/g, ' ').trim().toLowerCase();
-      
-      // Handle findUserByEmail
-      if (normalizedSql.includes('select') && normalizedSql.includes('from users') && normalizedSql.includes('where email =')) {
-        const email = params?.[0];
-        const id = emailIndex.get(email);
-        const user = id ? users.get(id) : null;
-        return { rows: user ? [{ 
-          id: user.id, 
-          email: user.email, 
-          password_hash: user.passwordHash,
-          refresh_token_hash: user.refreshTokenHash,
-          refresh_token_expires_at: user.refreshTokenExpiresAt,
-          created_at: user.createdAt,
-          updated_at: user.updatedAt,
-        }] : [] };
-      }
-      
-      // Handle findUserById
-      if (normalizedSql.includes('select') && normalizedSql.includes('from users') && normalizedSql.includes('where id =')) {
-        const id = params?.[0];
-        const user = users.get(id);
-        return { rows: user ? [{ 
-          id: user.id, 
-          email: user.email, 
-          password_hash: user.passwordHash,
-          refresh_token_hash: user.refreshTokenHash,
-          refresh_token_expires_at: user.refreshTokenExpiresAt,
-          created_at: user.createdAt,
-          updated_at: user.updatedAt,
-        }] : [] };
-      }
-
-      // Handle findTierById
-      if (normalizedSql.includes('from tiers') && normalizedSql.includes('where id =')) {
-        return { rows: [{ id: 'free', name: 'Free', daily_search_cap: 100, monthly_search_cap: null, credit_per_search: 1, credit_per_batch_query: 1, created_at: new Date() }] };
-      }
-
-      // Handle INSERT user
-      if (normalizedSql.includes('insert into users')) {
-        const email = params?.[0];
-        const passwordHash = params?.[1];
-        const id = crypto.randomUUID();
-        const now = new Date();
-        const user: MockUser = {
-          id,
-          email,
-          passwordHash,
-          refreshTokenHash: null,
-          refreshTokenExpiresAt: null,
-          createdAt: now,
-          updatedAt: now,
-        };
-        users.set(id, user);
-        emailIndex.set(email, id);
-        return { rows: [{ 
-          id: user.id, 
-          email: user.email, 
-          password_hash: user.passwordHash,
-          refresh_token_hash: user.refreshTokenHash,
-          refresh_token_expires_at: user.refreshTokenExpiresAt,
-          created_at: user.createdAt,
-          updated_at: user.updatedAt,
-        }] };
-      }
-
-      // Handle UPDATE refresh token
-      if (normalizedSql.includes('update users set refresh_token_hash')) {
-        const refreshTokenHash = params?.[0];
-        const expiresAt = params?.[1];
-        const userId = params?.[2];
-        const user = users.get(userId);
-        if (user) {
-          user.refreshTokenHash = refreshTokenHash;
-          user.refreshTokenExpiresAt = expiresAt;
-          user.updatedAt = new Date();
+// Load .env file
+function loadEnvFile(): void {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const envPath = join(__dirname, '..', '..', '..', '.env');
+  try {
+    const envContent = readFileSync(envPath, 'utf-8');
+    for (const line of envContent.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const [key, ...valueParts] = trimmed.split('=');
+        if (key && valueParts.length > 0) {
+          process.env[key.trim()] = valueParts.join('=').trim();
         }
-        return { rows: [] };
       }
-
-      return { rows: [] };
-    },
-    release: () => {},
-  };
-
-  return {
-    async connect() {
-      return mockClient;
-    },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async query(sql: string, params?: any[]) {
-      return mockClient.query(sql, params);
-    },
-    async end() {},
-    on: () => {},
-  };
+    }
+    console.log('Loaded .env file');
+  } catch {
+    console.log('No .env file found, using process.env');
+  }
 }
 
-function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
-  return {
+loadEnvFile();
+
+let config: AppConfig;
+let servicePool: pg.Pool;
+let redisClient: ReturnType<typeof createRedisClient>;
+
+before(async () => {
+  config = {
     port: 3000,
     host: '0.0.0.0',
     logLevel: 'error',
     logEnv: 'test',
     appVersion: 'test',
     staleAfterHours: 48,
-    databaseUrl: 'postgresql://app@127.0.0.1:5432/supermarket_api_test',
-    serviceDatabaseUrl: 'postgresql://app@127.0.0.1:5432/supermarket_api_test_service',
-    redisUrl: 'redis://localhost:6379',
-    apiKeyPepper: 'test-pepper-32-characters-minimum-length',
+    databaseUrl: process.env.DATABASE_URL ?? 'postgresql://app@127.0.0.1:5432/supermarket_api_test',
+    serviceDatabaseUrl: process.env.SERVICE_DATABASE_URL ?? 'postgresql://app@127.0.0.1:5432/supermarket_api_test_service',
+    redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+    apiKeyPepper: process.env.API_KEY_PEPPER ?? 'test-pepper-32-characters-minimum-length',
     githubRepository: '',
     githubWorkflowId: '',
     githubRef: '',
@@ -218,53 +60,123 @@ function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     searchRateLimitPerMinute: 60,
     refreshRateLimitPerMinute: 5,
     dbConcurrency: 2,
-    ...overrides,
   } satisfies AppConfig;
+
+  // Parse connection string manually to avoid pg parsing issues with query params
+  const serviceUrl = new URL(config.serviceDatabaseUrl);
+  console.log('Parsed URL:', {
+    hostname: serviceUrl.hostname,
+    port: serviceUrl.port,
+    pathname: serviceUrl.pathname,
+    username: serviceUrl.username,
+    password: serviceUrl.password ? '***' : 'EMPTY',
+    search: serviceUrl.search,
+  });
+  servicePool = new pg.Pool({
+    host: serviceUrl.hostname,
+    port: parseInt(serviceUrl.port || '5432'),
+    database: serviceUrl.pathname.slice(1),
+    user: serviceUrl.username,
+    password: serviceUrl.password,
+    max: 4,
+    connectionTimeoutMillis: 30_000,
+    idleTimeoutMillis: 30_000,
+    statement_timeout: config.dbQueryTimeoutMs,
+    ssl: { rejectUnauthorized: true },
+  });
+  redisClient = createRedisClient(config.redisUrl);
+
+  // Debug: test raw connection
+  console.log('Testing service database connection...');
+  try {
+    const client = await servicePool.connect();
+    const result = await client.query('SELECT 1 as test');
+    console.log('Connection test result:', result.rows);
+    client.release();
+  } catch (err) {
+    console.error('Connection failed:', err);
+    throw err;
+  }
+
+  // Validate connections
+  const serviceOk = await validateDatabase(servicePool);
+  if (!serviceOk) throw new Error('Service database unavailable');
+
+  const redisOk = await validateRedisConnection(redisClient);
+  if (!redisOk) throw new Error('Redis unavailable');
+
+  console.log('Database connections verified');
+});
+
+after(async () => {
+  await servicePool.end();
+  await redisClient.quit();
+});
+
+async function validateDatabase(pool: pg.Pool): Promise<boolean> {
+  try {
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function cleanupTestData(servicePool: pg.Pool): Promise<void> {
+  const client = await servicePool.connect();
+  try {
+    await client.query(`DELETE FROM api_keys WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%test%' OR email LIKE '%example%')`);
+    await client.query(`DELETE FROM credit_transactions WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%test%' OR email LIKE '%example%')`);
+    await client.query(`DELETE FROM credit_balances WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%test%' OR email LIKE '%example%')`);
+    await client.query(`DELETE FROM users WHERE email LIKE '%test%' OR email LIKE '%example%'`);
+  } finally {
+    client.release();
+  }
 }
 
 test('POST /v1/auth/signup creates user and returns tokens', async () => {
-  const serviceStore = createMockServiceStore();
-  const servicePool = createMockServicePool();
+  await cleanupTestData(servicePool);
+
   const app = buildApp({
-    config: testConfig(),
+    config,
     logger: createLoggerFactory({
-      level: 'error',
+      level: 'debug',
       environment: 'test',
       version: 'test',
       transports: [createMemoryTransport()],
     }).create(),
     catalog: undefined,
-    serviceStore,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    servicePool: servicePool as any,
-    redis: createMockRedis(),
+    servicePool,
+    redis: redisClient,
   });
 
   const response = await app.inject({
     method: 'POST',
     url: '/v1/auth/signup',
-    payload: { email: 'test@example.com', password: 'password123' },
+    payload: { email: 'test-real-db@example.com', password: 'password123' },
   });
 
+  console.log('Signup response:', response.statusCode, response.payload);
+  
   assert.equal(response.statusCode, 201);
   const body = response.json();
   assert.ok(body.user);
   assert.ok(body.user.id);
-  assert.equal(body.user.email, 'test@example.com');
+  assert.equal(body.user.email, 'test-real-db@example.com');
   assert.equal(body.user.tier, 'free');
   assert.ok(body.token);
   assert.ok(body.refreshToken);
   assert.ok(typeof body.token === 'string');
   assert.ok(typeof body.refreshToken === 'string');
-  
+
   await app.close();
 });
 
 test('POST /v1/auth/signup rejects invalid email', async () => {
-  const serviceStore = createMockServiceStore();
-  const servicePool = createMockServicePool();
   const app = buildApp({
-    config: testConfig(),
+    config,
     logger: createLoggerFactory({
       level: 'error',
       environment: 'test',
@@ -272,10 +184,8 @@ test('POST /v1/auth/signup rejects invalid email', async () => {
       transports: [createMemoryTransport()],
     }).create(),
     catalog: undefined,
-    serviceStore,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    servicePool: servicePool as any,
-    redis: createMockRedis(),
+    servicePool,
+    redis: redisClient,
   });
 
   const response = await app.inject({
@@ -287,15 +197,13 @@ test('POST /v1/auth/signup rejects invalid email', async () => {
   assert.equal(response.statusCode, 400);
   const body = response.json();
   assert.equal(body.error.code, 'INVALID_EMAIL');
-  
+
   await app.close();
 });
 
 test('POST /v1/auth/signup rejects weak password', async () => {
-  const serviceStore = createMockServiceStore();
-  const servicePool = createMockServicePool();
   const app = buildApp({
-    config: testConfig(),
+    config,
     logger: createLoggerFactory({
       level: 'error',
       environment: 'test',
@@ -303,10 +211,8 @@ test('POST /v1/auth/signup rejects weak password', async () => {
       transports: [createMemoryTransport()],
     }).create(),
     catalog: undefined,
-    serviceStore,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    servicePool: servicePool as any,
-    redis: createMockRedis(),
+    servicePool,
+    redis: redisClient,
   });
 
   const response = await app.inject({
@@ -318,15 +224,13 @@ test('POST /v1/auth/signup rejects weak password', async () => {
   assert.equal(response.statusCode, 400);
   const body = response.json();
   assert.equal(body.error.code, 'WEAK_PASSWORD');
-  
+
   await app.close();
 });
 
 test('POST /v1/auth/signup rejects duplicate email', async () => {
-  const serviceStore = createMockServiceStore();
-  const servicePool = createMockServicePool();
   const app = buildApp({
-    config: testConfig(),
+    config,
     logger: createLoggerFactory({
       level: 'error',
       environment: 'test',
@@ -334,36 +238,32 @@ test('POST /v1/auth/signup rejects duplicate email', async () => {
       transports: [createMemoryTransport()],
     }).create(),
     catalog: undefined,
-    serviceStore,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    servicePool: servicePool as any,
-    redis: createMockRedis(),
+    servicePool,
+    redis: redisClient,
   });
 
   await app.inject({
     method: 'POST',
     url: '/v1/auth/signup',
-    payload: { email: 'duplicate@example.com', password: 'password123' },
+    payload: { email: 'duplicate-real@example.com', password: 'password123' },
   });
 
   const response = await app.inject({
     method: 'POST',
     url: '/v1/auth/signup',
-    payload: { email: 'duplicate@example.com', password: 'password123' },
+    payload: { email: 'duplicate-real@example.com', password: 'password123' },
   });
 
   assert.equal(response.statusCode, 409);
   const body = response.json();
   assert.equal(body.error.code, 'EMAIL_EXISTS');
-  
+
   await app.close();
 });
 
 test('POST /v1/auth/signup does not return API key', async () => {
-  const serviceStore = createMockServiceStore();
-  const servicePool = createMockServicePool();
   const app = buildApp({
-    config: testConfig(),
+    config,
     logger: createLoggerFactory({
       level: 'error',
       environment: 'test',
@@ -371,22 +271,20 @@ test('POST /v1/auth/signup does not return API key', async () => {
       transports: [createMemoryTransport()],
     }).create(),
     catalog: undefined,
-    serviceStore,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    servicePool: servicePool as any,
-    redis: createMockRedis(),
+    servicePool,
+    redis: redisClient,
   });
 
   const response = await app.inject({
     method: 'POST',
     url: '/v1/auth/signup',
-    payload: { email: 'no-key@example.com', password: 'password123' },
+    payload: { email: 'no-key-real@example.com', password: 'password123' },
   });
 
   assert.equal(response.statusCode, 201);
   const body = response.json();
   assert.ok(!body.apiKey);
   assert.ok(!body.plaintext);
-  
+
   await app.close();
 });
