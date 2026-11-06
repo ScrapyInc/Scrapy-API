@@ -48,6 +48,8 @@ test('OpenAPI lists search and refresh and includes auth endpoints with bearer a
   assert.equal(typeof document.paths['/v1/auth/signup'], 'object');
   assert.equal(typeof document.paths['/v1/auth/login'], 'object');
   assert.equal(typeof document.paths['/v1/auth/keys'], 'object');
+  assert.equal(typeof document.paths['/v1/billing/tiers'], 'object');
+  assert.equal(typeof document.paths['/v1/billing/credits/topup'], 'object');
   assert.ok(document.components.securitySchemes);
   assert.equal(document.components.securitySchemes?.bearerAuth?.type, 'http');
   assert.equal(document.components.securitySchemes?.bearerAuth?.scheme, 'bearer');

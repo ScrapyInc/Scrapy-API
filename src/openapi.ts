@@ -231,6 +231,69 @@ export function openApiDocument(): Record<string, unknown> {
           },
         },
       },
+      '/v1/billing/tiers': {
+        get: {
+          operationId: 'listBillingTiers',
+          responses: {
+            '200': {
+              description: 'Available subscription tiers',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    required: ['tiers'],
+                    properties: {
+                      tiers: { type: 'array', items: { $ref: '#/components/schemas/Tier' } },
+                    },
+                  },
+                },
+              },
+            },
+            '503': { $ref: '#/components/responses/Error' },
+          },
+        },
+      },
+      '/v1/billing/credits/topup': {
+        post: {
+          operationId: 'topUpCredits',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['pack_id'],
+                  properties: {
+                    pack_id: {
+                      type: 'string',
+                      enum: ['pack_10usd', 'pack_50usd', 'pack_100usd'],
+                    },
+                    amount_usd: { type: 'number' },
+                    credits: { type: 'integer' },
+                    reference_id: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Credits added to the developer balance',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/TopUpResponse' },
+                },
+              },
+            },
+            '400': { $ref: '#/components/responses/Error' },
+            '401': { $ref: '#/components/responses/Error' },
+            '404': { $ref: '#/components/responses/Error' },
+            '409': { $ref: '#/components/responses/Error' },
+            '503': { $ref: '#/components/responses/Error' },
+          },
+        },
+      },
     },
     components: {
       schemas: {
@@ -284,6 +347,42 @@ export function openApiDocument(): Record<string, unknown> {
               },
             },
           ],
+        },
+        Tier: {
+          type: 'object',
+          required: [
+            'id',
+            'name',
+            'daily_search_cap',
+            'monthly_search_cap',
+            'credit_per_search',
+            'credit_per_batch_query',
+          ],
+          properties: {
+            id: { type: 'string', enum: ['free', 'paid_starter', 'paid_pro'] },
+            name: { type: 'string' },
+            daily_search_cap: { type: 'integer', nullable: true },
+            monthly_search_cap: { type: 'integer', nullable: true },
+            credit_per_search: { type: 'integer' },
+            credit_per_batch_query: { type: 'integer' },
+          },
+        },
+        TopUpResponse: {
+          type: 'object',
+          required: [
+            'developer_id',
+            'previous_balance',
+            'added_credits',
+            'new_balance',
+            'transaction_id',
+          ],
+          properties: {
+            developer_id: { type: 'string', format: 'uuid' },
+            previous_balance: { type: 'integer' },
+            added_credits: { type: 'integer' },
+            new_balance: { type: 'integer' },
+            transaction_id: { type: 'string', format: 'uuid' },
+          },
         },
       },
       securitySchemes: {
