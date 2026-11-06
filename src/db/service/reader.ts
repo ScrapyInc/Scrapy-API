@@ -80,6 +80,15 @@ export class PgReader implements ServiceReader {
     return result.rows.map(asApiKey);
   }
 
+  async findAllTiers(): Promise<Tier[]> {
+    const result = await this.client.query(
+      `SELECT id, name, daily_search_cap, monthly_search_cap, credit_per_search, credit_per_batch_query, created_at
+       FROM tiers
+       ORDER BY CASE id WHEN 'free' THEN 1 WHEN 'paid_starter' THEN 2 WHEN 'paid_pro' THEN 3 ELSE 4 END, id`
+    );
+    return result.rows.map(asTier);
+  }
+
   async findTierById(id: string): Promise<Tier | null> {
     const result = await this.client.query(
       `SELECT id, name, daily_search_cap, monthly_search_cap, credit_per_search, credit_per_batch_query, created_at
@@ -90,6 +99,10 @@ export class PgReader implements ServiceReader {
   }
 
   async findCreditBalanceByUserId(userId: string): Promise<CreditBalance | null> {
+    return this.getCreditBalance(userId);
+  }
+
+  async getCreditBalance(userId: string): Promise<CreditBalance | null> {
     const result = await this.client.query(
       `SELECT user_id, balance, updated_at FROM credit_balances WHERE user_id = $1`,
       [userId]
@@ -97,11 +110,46 @@ export class PgReader implements ServiceReader {
     return result.rows[0] ? asCreditBalance(result.rows[0]) : null;
   }
 
+  async createCreditBalance(userId: string): Promise<CreditBalance> {
+    const result = await this.client.query(
+      `INSERT INTO credit_balances (user_id, balance, updated_at)
+       VALUES ($1, 0, now())
+       ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
+       RETURNING user_id, balance, updated_at`,
+      [userId]
+    );
+    return asCreditBalance(result.rows[0]);
+  }
+
+  async addCreditTransaction(
+    userId: string,
+    amount: number,
+    reason: 'topup' | 'x402_topup' | 'api_call',
+    referenceId: string | null
+  ): Promise<CreditTransaction> {
+    const result = await this.client.query(
+      `INSERT INTO credit_transactions (user_id, amount, reason, reference_id)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, user_id, amount, reason, reference_id, created_at`,
+      [userId, amount, reason, referenceId]
+    );
+    return asCreditTransaction(result.rows[0]);
+  }
+
   async findCreditTransactionsByUserId(userId: string, limit: number): Promise<CreditTransaction[]> {
+    return this.findCreditTransactionsByUser(userId, limit, 0);
+  }
+
+  async findCreditTransactionsByUser(
+    userId: string,
+    limit: number,
+    offset: number
+  ): Promise<CreditTransaction[]> {
     const result = await this.client.query(
       `SELECT id, user_id, amount, reason, reference_id, created_at
-       FROM credit_transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
-      [userId, limit]
+       FROM credit_transactions WHERE user_id = $1
+       ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
     );
     return result.rows.map(asCreditTransaction);
   }

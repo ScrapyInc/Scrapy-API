@@ -19,4 +19,12 @@ export function createServiceStore(pool: pg.Pool, logger: Logger): ServiceStore 
 export { createServicePool } from '../pool.ts';
 export { PgServiceStore } from './store.ts';
 export type { ServiceReader, ServiceStore } from './types.ts';
-export type { User, ApiKey, Tier, CreditBalance, CreditTransaction } from './types.ts';
+export type {
+  User,
+  ApiKey,
+  Tier,
+  CreditBalance,
+  CreditMutationResult,
+  CreditTransaction,
+  CreditTransactionReason,
+} from './types.ts';
