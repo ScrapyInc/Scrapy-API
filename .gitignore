@@ -157,7 +157,7 @@ vite.config.ts.timestamp-*
 docs/specs/
 docs/intent/
 docs/future/
-tasks/
+tasks/*
 *.plan.md
 *.todo.md
 .agents/*
