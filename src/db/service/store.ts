@@ -8,7 +8,9 @@ import type {
   User,
   ApiKey,
   CreditBalance,
+  CreditMutationResult,
   CreditTransaction,
+  CreditTransactionReason,
 } from './types.ts';
 import { PgReader } from './reader.ts';
 import { camelizeRow } from '../rows.ts';
@@ -57,14 +59,7 @@ export class PgServiceStore implements ServiceStore {
       return result;
     } catch (error) {
       await client?.query('ROLLBACK').catch(() => undefined);
-      const code = error !== null && typeof error === 'object' && 'code' in error ? error.code : undefined;
-      this.logger.error('Service database operation failed', {
-        phase: client ? 'query' : 'connect',
-        databaseCode: typeof code === 'string' && /^[A-Z0-9_]{1,64}$/.test(code) ? code : 'UNKNOWN',
-        databaseMs: Date.now() - started,
-      });
-      if (error instanceof HttpError) throw error;
-      throw new HttpError(503, 'UNAVAILABLE', 'Database unavailable', undefined, 5);
+      return this.fail(started, client !== undefined, error);
     } finally {
       client?.release();
     }
@@ -113,7 +108,7 @@ export class PgServiceStore implements ServiceStore {
   async createCreditTransaction(
     userId: string,
     amount: number,
-    reason: 'topup' | 'x402_topup' | 'api_call',
+    reason: CreditTransactionReason,
     referenceId: string | null
   ): Promise<CreditTransaction> {
     const result = await this.pool.query(
@@ -136,5 +131,87 @@ export class PgServiceStore implements ServiceStore {
       [userId, amount]
     );
     return asCreditBalance(result.rows[0]);
+  }
+
+  /**
+   * Applies one balance change and its ledger entry in a single transaction.
+   * The balance row is locked first, so concurrent changes for the same user
+   * serialize and an idempotent replay cannot be recorded twice.
+   */
+  async applyCreditTransaction(
+    userId: string,
+    amount: number,
+    reason: CreditTransactionReason,
+    referenceId: string | null
+  ): Promise<CreditMutationResult> {
+    let client: pg.PoolClient | undefined;
+    const started = Date.now();
+    try {
+      client = await this.pool.connect();
+      await client.query('BEGIN');
+
+      // Ensure the row exists so SELECT ... FOR UPDATE has something to lock.
+      await client.query(
+        `INSERT INTO credit_balances (user_id, balance, updated_at)
+         VALUES ($1, 0, now())
+         ON CONFLICT (user_id) DO NOTHING`,
+        [userId]
+      );
+
+      const balance = await client.query(
+        `SELECT balance FROM credit_balances WHERE user_id = $1 FOR UPDATE`,
+        [userId]
+      );
+      const previousBalance = Number(balance.rows[0]?.balance ?? 0);
+
+      if (referenceId !== null) {
+        const duplicate = await client.query(
+          `SELECT id FROM credit_transactions
+           WHERE user_id = $1 AND reason = $2 AND reference_id = $3 LIMIT 1`,
+          [userId, reason, referenceId]
+        );
+        if (duplicate.rows.length > 0) {
+          throw new HttpError(409, 'DUPLICATE_TRANSACTION', 'This transaction was already applied');
+        }
+      }
+
+      const transaction = await client.query(
+        `INSERT INTO credit_transactions (user_id, amount, reason, reference_id)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, user_id, amount, reason, reference_id, created_at`,
+        [userId, amount, reason, referenceId]
+      );
+
+      const updated = await client.query(
+        `UPDATE credit_balances SET balance = balance + $2, updated_at = now()
+         WHERE user_id = $1
+         RETURNING user_id, balance, updated_at`,
+        [userId, amount]
+      );
+
+      await client.query('COMMIT');
+
+      return {
+        transaction: asCreditTransaction(transaction.rows[0]),
+        previousBalance,
+        newBalance: Number(updated.rows[0]?.balance ?? previousBalance + amount),
+      };
+    } catch (error) {
+      await client?.query('ROLLBACK').catch(() => undefined);
+      return this.fail(started, client !== undefined, error);
+    } finally {
+      client?.release();
+    }
+  }
+
+  private fail(started: number, connected: boolean, error: unknown): never {
+    const code = error !== null && typeof error === 'object' && 'code' in error ? error.code : undefined;
+    this.logger.error('Service database operation failed', {
+      phase: connected ? 'query' : 'connect',
+      databaseCode: typeof code === 'string' && /^[A-Z0-9_]{1,64}$/.test(code) ? code : 'UNKNOWN',
+      databaseMs: Date.now() - started,
+    });
+    if (error instanceof HttpError) throw error;
+    throw new HttpError(503, 'UNAVAILABLE', 'Database unavailable', undefined, 5);
   }
 }

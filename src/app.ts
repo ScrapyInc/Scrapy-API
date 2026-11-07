@@ -15,6 +15,7 @@ import { registerRefresh } from './routes/refreshes.ts';
 import { registerReady } from './routes/health.ts';
 import { registerSearch } from './routes/search.ts';
 import { registerAuthRoutes } from './routes/auth/index.ts';
+import { registerBillingRoutes } from './routes/billing/index.ts';
 import { openApiDocument } from './openapi.ts';
 
 export interface BuildAppOptions {
@@ -132,6 +133,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
 
   if (options.servicePool) {
     registerAuthRoutes(app, options.servicePool, logger);
+    registerBillingRoutes(app, options.servicePool, logger);
   }
 
   app.get('/health/live', {

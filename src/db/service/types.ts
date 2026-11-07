@@ -40,13 +40,21 @@ export interface CreditBalance {
   updatedAt: Date;
 }
 
+export type CreditTransactionReason = 'topup' | 'x402_topup' | 'api_call';
+
 export interface CreditTransaction {
   id: string;
   userId: string;
   amount: number;
-  reason: 'topup' | 'x402_topup' | 'api_call';
+  reason: CreditTransactionReason;
   referenceId: string | null;
   createdAt: Date;
+}
+
+export interface CreditMutationResult {
+  transaction: CreditTransaction;
+  previousBalance: number;
+  newBalance: number;
 }
 
 export interface ServiceReader {
@@ -55,9 +63,23 @@ export interface ServiceReader {
   findUserByRefreshTokenHash(refreshTokenHash: string): Promise<User | null>;
   findApiKeyByKeyId(keyId: string): Promise<ApiKey | null>;
   findApiKeysByUserId(userId: string): Promise<ApiKey[]>;
+  findAllTiers(): Promise<Tier[]>;
   findTierById(id: string): Promise<Tier | null>;
   findCreditBalanceByUserId(userId: string): Promise<CreditBalance | null>;
+  getCreditBalance(userId: string): Promise<CreditBalance | null>;
+  createCreditBalance(userId: string): Promise<CreditBalance>;
+  addCreditTransaction(
+    userId: string,
+    amount: number,
+    reason: CreditTransactionReason,
+    referenceId: string | null
+  ): Promise<CreditTransaction>;
   findCreditTransactionsByUserId(userId: string, limit: number): Promise<CreditTransaction[]>;
+  findCreditTransactionsByUser(
+    userId: string,
+    limit: number,
+    offset: number
+  ): Promise<CreditTransaction[]>;
 }
 
 export interface ServiceStore {
@@ -76,8 +98,14 @@ export interface ServiceStore {
   createCreditTransaction(
     userId: string,
     amount: number,
-    reason: 'topup' | 'x402_topup' | 'api_call',
+    reason: CreditTransactionReason,
     referenceId: string | null
   ): Promise<CreditTransaction>;
   updateCreditBalance(userId: string, amount: number): Promise<CreditBalance>;
+  applyCreditTransaction(
+    userId: string,
+    amount: number,
+    reason: CreditTransactionReason,
+    referenceId: string | null
+  ): Promise<CreditMutationResult>;
 }
