@@ -8,6 +8,7 @@ import { rejectUnknownQueryKeys } from '../http/search-input.ts';
 import type { Logger } from '../logger/types.ts';
 import { dispatchConfigured, dispatchWorkflow, type DispatchOutcome } from '../refresh/dispatch.ts';
 import type { RefreshStore } from '../refresh/store.ts';
+import { createMeteringMiddleware, finalizeMetering, type MeteringDeps } from '../http/metering-middleware.ts';
 
 export interface RefreshDeps {
   config: AppConfig;
@@ -16,9 +17,18 @@ export interface RefreshDeps {
   rateLimit: RateLimiter;
   now: () => Date;
   dispatch?: (runId: string) => Promise<DispatchOutcome>;
+  metering?: MeteringDeps;
 }
 
 export function registerRefresh(app: FastifyInstance, deps: RefreshDeps): void {
+  if (deps.metering) {
+    const meteringMiddleware = createMeteringMiddleware(deps.metering);
+    app.addHook('preHandler', meteringMiddleware);
+    app.addHook('onResponse', async (request, reply) => {
+      await finalizeMetering(deps.metering!, request, reply);
+    });
+  }
+
   app.post('/v1/refreshes', async (request, reply) => {
     const decision = deps.rateLimit.take('refresh');
     if (!decision.allowed) {
