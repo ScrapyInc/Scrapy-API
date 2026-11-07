@@ -160,3 +160,4 @@ docs/future/
 tasks/
 *.plan.md
 *.todo.md
+.agents/*
