@@ -7,13 +7,22 @@ import type { RateLimiter } from '../http/rate-limit.ts';
 import { parseBatch, parseLimitPerChain, parseSearchQuery, rejectUnknownQueryKeys } from '../http/search-input.ts';
 import type { Logger } from '../logger/types.ts';
 import { rankProducts } from '../search/rank.ts';
+import { createMeteringMiddleware, finalizeMetering, type MeteringDeps } from '../http/metering-middleware.ts';
 
 export function registerSearch(
   app: FastifyInstance,
   store: CatalogStore,
   logger: Logger,
-  options: { rateLimit: RateLimiter },
+  options: { rateLimit: RateLimiter; metering?: MeteringDeps },
 ): void {
+  if (options.metering) {
+    const meteringMiddleware = createMeteringMiddleware(options.metering);
+    app.addHook('preHandler', meteringMiddleware);
+    app.addHook('onResponse', async (request, reply) => {
+      await finalizeMetering(options.metering!, request, reply);
+    });
+  }
+
   app.get('/v1/search', async (request) => {
     take(options.rateLimit, 'search');
     const query = request.query as Record<string, unknown>;

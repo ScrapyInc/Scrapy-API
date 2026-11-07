@@ -9,6 +9,7 @@ import { createLoggerFactory } from './logger/factory.ts';
 import { createConsoleTransport } from './logger/transports/console.ts';
 import { PgRefreshStore } from './refresh/store.ts';
 import { PgServiceStore } from './db/service/store.ts';
+import type { MeteringDeps } from './http/metering-middleware.ts';
 
 export async function start(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const config = loadConfig(env);
@@ -25,6 +26,12 @@ export async function start(env: NodeJS.ProcessEnv = process.env): Promise<void>
   const redisClient = createRedisClient(config.redisUrl);
 
   await validateStartupDependencies(logger, catalogPool, servicePool, redisClient);
+
+  const meteringDeps: MeteringDeps = {
+    servicePool,
+    redis: redisClient,
+    logger,
+  };
 
   const app = buildApp({
     config,
@@ -46,6 +53,7 @@ export async function start(env: NodeJS.ProcessEnv = process.env): Promise<void>
     servicePool,
     redis: redisClient,
     refresh: { store: new PgRefreshStore(catalogPool) },
+    metering: meteringDeps,
   });
 
   let closing = false;

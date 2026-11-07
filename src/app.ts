@@ -17,6 +17,7 @@ import { registerSearch } from './routes/search.ts';
 import { registerAuthRoutes } from './routes/auth/index.ts';
 import { registerBillingRoutes } from './routes/billing/index.ts';
 import { openApiDocument } from './openapi.ts';
+import type { MeteringDeps } from './http/metering-middleware.ts';
 
 export interface BuildAppOptions {
   config: AppConfig;
@@ -30,7 +31,9 @@ export interface BuildAppOptions {
     rateLimit?: RateLimiter;
     now?: () => Date;
     dispatch?: RefreshDeps['dispatch'];
+    metering?: MeteringDeps;
   };
+  metering?: MeteringDeps;
   rateLimit?: RateLimiter;
   now?: () => Date;
 }
@@ -118,7 +121,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
 
   registerReady(app, options.readyCheck ?? (async () => false));
   if (options.catalog) {
-    registerSearch(app, options.catalog, logger, { rateLimit });
+    registerSearch(app, options.catalog, logger, { rateLimit, metering: options.metering });
   }
   if (options.refresh) {
     registerRefresh(app, {
@@ -128,6 +131,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       rateLimit: options.refresh.rateLimit ?? rateLimit,
       now,
       ...(options.refresh.dispatch ? { dispatch: options.refresh.dispatch } : {}),
+      metering: options.refresh.metering ?? options.metering,
     });
   }
 
