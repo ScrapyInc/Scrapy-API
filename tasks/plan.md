@@ -19,32 +19,32 @@ Add production-grade shared infrastructure (Neon service database + Redis) to th
 
 ### Phase 1: Configuration & Validation
 
-- [ ] **Task 1: Extend configuration with new required variables**
+- [x] **Task 1: Extend configuration with new required variables**
   - Add `SERVICE_DATABASE_URL`, `REDIS_URL`, `API_KEY_PEPPER` to `AppConfig` interface
   - Update `loadConfig()` to validate and parse new variables
   - Add validation for Redis URL format and API_KEY_PEPPER minimum length
   - Update `.env.example` with new variables
 
-- [ ] **Task 2: Create service database pool factory**
+- [x] **Task 2: Create service database pool factory**
   - Add `createServicePool()` function in `src/db/pool.ts` (or new `service-pool.ts`)
   - Reuse existing pool configuration patterns (SSL, timeouts, connection limits)
   - Configure pool size appropriate for Neon free tier (max: 4)
 
 ### Phase 2: Database Schema & Service Layer
 
-- [ ] **Task 3: Create service database schema types**
+- [x] **Task 3: Create service database schema types**
   - Define TypeScript interfaces for: `User`, `ApiKey`, `Tier`, `CreditBalance`, `CreditTransaction`
   - Create `src/db/service/types.ts` for shared types
   - Define `ServiceStore` interface mirroring `CatalogStore` pattern
 
-- [ ] **Task 4: Implement service database schema (SQL)**
+- [x] **Task 4: Implement service database schema (SQL)**
   - Create `src/db/service/schema.sql` with all tables from spec:
     - `users`, `api_keys`, `tiers`, `credit_balances`, `credit_transactions`
     - Indexes and constraints as specified
     - Seed data for tiers
   - Include reserved columns for `api_key_restrictions` (unused until future feature)
 
-- [ ] **Task 5: Create service store implementation**
+- [x] **Task 5: Create service store implementation**
   - Implement `PgServiceStore` class in `src/db/service/store.ts`
   - Follow `PgCatalog` pattern with `withSnapshot()` method
   - Provide basic CRUD operations for platform tables
@@ -52,7 +52,7 @@ Add production-grade shared infrastructure (Neon service database + Redis) to th
 
 ### Phase 3: Redis Integration
 
-- [ ] **Task 6: Add Redis client and connection management**
+- [x] **Task 6: Add Redis client and connection management**
   - Add `ioredis` dependency
   - Create `src/db/redis.ts` with `createRedisClient()` function
   - Implement connection validation at startup
@@ -60,7 +60,7 @@ Add production-grade shared infrastructure (Neon service database + Redis) to th
 
 ### Phase 4: Health Checks & Startup Validation
 
-- [ ] **Task 7: Extend health check to verify all dependencies**
+- [x] **Task 7: Extend health check to verify all dependencies**
   - Update `readyCheck` in `src/server.ts` to check:
     - Catalog DB (`SELECT 1`)
     - Service DB (`SELECT 1`)
@@ -68,51 +68,51 @@ Add production-grade shared infrastructure (Neon service database + Redis) to th
   - Return 503 with `Retry-After: 5` when any check fails
   - Update `registerReady` in `src/routes/health.ts` if needed
 
-- [ ] **Task 8: Add startup validation for service DB and Redis**
+- [x] **Task 8: Add startup validation for service DB and Redis**
   - Modify `src/server.ts` to validate service DB and Redis connectivity on startup
   - Fail loudly (exit with error) if either is unreachable
   - Log clear error messages for each failure case
 
 ### Phase 5: Wiring & Integration
 
-- [ ] **Task 9: Wire service store and Redis into app**
+- [x] **Task 9: Wire service store and Redis into app**
   - Update `BuildAppOptions` interface in `src/app.ts` to accept optional `serviceStore` and `redis`
   - Pass service store and Redis through to routes that need them (future stages)
   - Update `src/server.ts` to create and pass service pool, service store, and Redis client
 
 ### Phase 6: Testing
 
-- [ ] **Task 10: Unit tests for configuration validation**
+- [x] **Task 10: Unit tests for configuration validation**
   - Test new config variables in `test/unit/config.test.ts`
   - Test validation of `SERVICE_DATABASE_URL`, `REDIS_URL`, `API_KEY_PEPPER`
   - Test missing/invalid cases
 
-- [ ] **Task 11: Unit tests for pool factories**
+- [x] **Task 11: Unit tests for pool factories**
   - Test `createServicePool()` in `test/unit/pool.test.ts` (or new test file)
   - Test SSL configuration for remote Neon
   - Test pool options
 
-- [ ] **Task 12: Unit tests for Redis client**
+- [x] **Task 12: Unit tests for Redis client**
   - Test `createRedisClient()` in `test/unit/redis.test.ts`
   - Test connection validation
 
-- [ ] **Task 13: Contract tests for health endpoint**
+- [x] **Task 13: Contract tests for health endpoint**
   - Test `/health/ready` returns 200 when all deps healthy
   - Test `/health/ready` returns 503 with `Retry-After: 5` when any dep fails
   - Add to `test/contract/` or `test/unit/health.test.ts`
 
-- [ ] **Task 14: Integration tests with test databases**
+- [x] **Task 14: Integration tests with test databases**
   - Create `test/integration/service-db.test.ts` using disposable test database pattern
   - Test service store CRUD operations
   - Test health check integration with real dependencies
   - Follow existing `postgres-server.ts` pattern
 
 ### Checkpoint: Foundation Complete
-- [ ] All tests pass (`npm test`)
-- [ ] Build succeeds (`npm run build`)
-- [ ] Type checking passes (`npm run typecheck`)
-- [ ] Linting passes (`npm run lint`)
-- [ ] Manual verification: health endpoint returns 200 with all deps available
+- [x] All tests pass (`npm test`)
+- [x] Build succeeds (`npm run build`)
+- [x] Type checking passes (`npm run typecheck`)
+- [x] Linting passes (`npm run lint`)
+- [x] Manual verification: health endpoint returns 200 with all deps available
 
 ## Risks and Mitigations
 

@@ -128,3 +128,13 @@
 - [x] Type checking passes (`npm run typecheck`)
 - [x] Linting passes (`npm run lint`)
 - [x] Manual verification: health endpoint returns 200 with all deps available
+
+## Stage 1 — Identity & Access (API Keys) — COMPLETE
+
+All Stage 1 tasks implemented and tested:
+- Auth routes: signup, login, refresh, create-key, list-keys, revoke-key, rotate-key
+- Auth utilities: password hashing (bcrypt cost 12), JWT tokens (15m/30d), API key generation/validation
+- Middleware: requireLogin (access token), requireApiKey (API key)
+- Unit tests: password (10), tokens (11), api-keys (8), service reader (7), service store (11)
+- Contract tests: signup (5), login (4), refresh (4), keys (10)
+- All 143 tests pass (40 contract + 103 unit)
