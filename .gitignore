@@ -162,3 +162,4 @@ tasks/*
 *.plan.md
 *.todo.md
 .agents/*
+scenarios-tests.md
